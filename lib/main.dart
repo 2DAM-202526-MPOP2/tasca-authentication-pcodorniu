@@ -1,6 +1,9 @@
 import 'package:first_flutter/data/models/sentence.dart';
+import 'package:first_flutter/data/repositories/login_repository.dart';
 import 'package:first_flutter/data/repositories/sentence_repository.dart';
+import 'package:first_flutter/data/services/authentication_services.dart';
 import 'package:first_flutter/data/services/sentence_service.dart';
+import 'package:first_flutter/presentation/viewmodels/login_vm.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -18,6 +21,13 @@ void main() {
             sentenceService: context.read(),
           ), //ISentenceRepository instance
         ),
+        Provider<IAuthenticationService>(
+          create: (context) => AuthenticationService(),
+        ),
+        Provider<ILoginRepository>(
+          create: (context) =>
+              LoginRepository(authenticationService: context.read()),
+        ),
       ],
       child: const MyApp(),
     ),
@@ -29,8 +39,15 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => SentenceVM(sentenceRepository: context.read()),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (context) => SentenceVM(sentenceRepository: context.read()),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => LoginViewModel(loginRepository: context.read()),
+        ),
+      ],
       child: MaterialApp(
         title: 'Namer App',
         theme: ThemeData(
@@ -60,6 +77,9 @@ class _MyHomePageState extends State<MyHomePage> {
       case 1:
         page = FavoritesPage();
         break;
+      case 2:
+        page = LoginView();
+        break;
       default:
         throw UnimplementedError('no widget for $selectedIndex');
     }
@@ -76,6 +96,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   icon: Icon(Icons.favorite),
                   label: 'Favorites',
                 ),
+                NavigationDestination(icon: Icon(Icons.login), label: 'Login'),
               ],
               selectedIndex: selectedIndex,
               onDestinationSelected: (value) {
@@ -100,6 +121,10 @@ class _MyHomePageState extends State<MyHomePage> {
                       NavigationRailDestination(
                         icon: Icon(Icons.favorite),
                         label: Text('Favorites'),
+                      ),
+                      NavigationRailDestination(
+                        icon: Icon(Icons.login),
+                        label: Text('Login'),
                       ),
                     ],
                     selectedIndex: selectedIndex,
@@ -233,6 +258,64 @@ class FavoritesPage extends StatelessWidget {
             title: Text(word.text),
           ),
       ],
+    );
+  }
+}
+
+class LoginView extends StatelessWidget {
+  const LoginView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<LoginViewModel>();
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (vm.currentUser != null) ...[
+              Text(
+                'Welcome, ${vm.currentUser!.username}!',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  vm.logout();
+                },
+                child: Text('Logout'),
+              ),
+            ] else ...[
+              TextField(
+                decoration: InputDecoration(labelText: 'Username'),
+                onChanged: (value) => vm.setUsername(value),
+              ),
+              SizedBox(height: 20),
+              TextField(
+                decoration: InputDecoration(labelText: 'Password'),
+                obscureText: true,
+                onChanged: (value) => vm.setPassword(value),
+              ),
+              SizedBox(height: 20),
+              if (vm.isLoading)
+                CircularProgressIndicator()
+              else
+                ElevatedButton(
+                  onPressed: () async {
+                    await vm.login();
+                  },
+                  child: Text('Login'),
+                ),
+              if (vm.errorMessage != null) ...[
+                SizedBox(height: 20),
+                Text(vm.errorMessage!, style: TextStyle(color: Colors.red)),
+              ],
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
